@@ -20,14 +20,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm ci
         working-directory: lambdas/authLogin
 
       - name: Build Lambda
-        run: npx esbuild handler.ts --bundle --platform=node --target=node20 --outfile=dist/index.js
+        run: npx esbuild handler.ts --bundle --platform=node --target=node22 --outfile=dist/index.js
         working-directory: lambdas/authLogin
 
       - name: Zip Lambda
