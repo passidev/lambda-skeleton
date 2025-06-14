@@ -67,6 +67,19 @@ jobs:
         working-directory: infrastructure
         run: terraform init
 
+      - name: Terraform Import Role if not present
+        working-directory: infrastructure
+        run: |
+          ROLE_NAME="auth-service-${{ env.BRANCH_NAME }}-role"
+          EXISTS=$(terraform state list | grep "module.auth_lambda.aws_iam_role.lambda_role" || true)
+          if [ -z "$EXISTS" ]; then
+            echo "⏳ Importing role $ROLE_NAME into Terraform state..."
+            terraform import module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import (may not exist)"
+          else
+            echo "✅ Role already in Terraform state, skipping import."
+          fi
+
+
       - name: Terraform Apply
         working-directory: infrastructure
         run: |
