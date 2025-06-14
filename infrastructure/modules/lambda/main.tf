@@ -57,6 +57,12 @@ resource "aws_lambda_permission" "api_gw" {
   function_name = aws_lambda_function.this.arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
+
+  depends_on = [
+    aws_apigatewayv2_api.this,
+    aws_apigatewayv2_integration.this,
+    aws_apigatewayv2_route.this
+  ]
 }
 
 output "lambda_api_url" {
