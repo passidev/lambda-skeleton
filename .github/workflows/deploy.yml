@@ -67,22 +67,38 @@ jobs:
         working-directory: infrastructure
         run: terraform init
 
-      - name: Terraform Import Role if not present
+      - name: Terraform Import Resources if not present
         working-directory: infrastructure
         run: |
           ROLE_NAME="auth-service-${{ env.BRANCH_NAME }}-role"
+          FUNCTION_NAME="auth-service-${{ env.BRANCH_NAME }}"
+
           terraform state pull || echo "{}" > terraform.tfstate
-          EXISTS=$(terraform state list | grep "module.auth_lambda.aws_iam_role.lambda_role" || true)
-          if [ -z "$EXISTS" ]; then
+
+          ROLE_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_iam_role.lambda_role" || true)
+          if [ -z "$ROLE_EXISTS" ]; then
             echo "⏳ Importing role $ROLE_NAME into Terraform state..."
             terraform import \
               -var="aws_region=${{ env.AWS_REGION }}" \
               -var="env=${{ env.BRANCH_NAME }}" \
               -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
               -var="source_code_hash=" \
-              module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import (may not exist)"
+              module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import role"
           else
             echo "✅ Role already in Terraform state, skipping import."
+          fi
+
+          FUNCTION_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_lambda_function.this" || true)
+          if [ -z "$FUNCTION_EXISTS" ]; then
+            echo "⏳ Importing Lambda $FUNCTION_NAME into Terraform state..."
+            terraform import \
+              -var="aws_region=${{ env.AWS_REGION }}" \
+              -var="env=${{ env.BRANCH_NAME }}" \
+              -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
+              -var="source_code_hash=" \
+              module.auth_lambda.aws_lambda_function.this $FUNCTION_NAME || echo "⚠️ Failed to import Lambda"
+          else
+            echo "✅ Lambda already in Terraform state, skipping import."
           fi
 
       - name: Terraform Apply
