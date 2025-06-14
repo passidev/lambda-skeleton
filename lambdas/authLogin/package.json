@@ -1,0 +1,24 @@
+{
+  "name": "lambda-auth-login",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node20 --outfile=dist/index.js",
+    "zip": "zip -j function.zip dist/index.js",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "aws-sdk": "^2.1692.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
+    "@types/node": "^24.0.1",
+    "esbuild": "^0.25.5",
+    "typescript": "^5.8.3"
+  }
+}
