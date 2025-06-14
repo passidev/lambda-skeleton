@@ -50,4 +50,4 @@ jobs:
       - name: Upload to S3
         run: |
           BRANCH=${GITHUB_REF##*/}
-          aws s3 cp src/auth-register/function.zip s3://lambdas-artifacts-$BRANCH/auth-register/$BRANCH/function.zip
+          aws s3 cp lambdas/authRegister/function.zip s3://lambdas-artifacts-$BRANCH/auth-register/$BRANCH/function.zip
