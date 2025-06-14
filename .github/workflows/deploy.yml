@@ -48,7 +48,6 @@ jobs:
         run: |
           for lambda in auth-login auth-register; do
             ROLE_NAME="$lambda-${{ env.TF_VAR_env }}-role"
-            terraform state pull || echo "{}" > terraform.tfstate
             EXISTS=$(terraform state list | grep "module.$lambda.aws_iam_role.lambda_role" || true)
             if [ -z "$EXISTS" ]; then
               echo "⏳ Importing role $ROLE_NAME into Terraform state..."
