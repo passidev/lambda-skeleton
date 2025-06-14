@@ -6,6 +6,7 @@ on:
     paths:
       - 'lambdas/auth-login/**'
       - '.github/workflows/build-auth-login.yml'
+  workflow_call:
 
 jobs:
   build-auth-login:
