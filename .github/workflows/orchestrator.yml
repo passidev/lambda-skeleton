@@ -1,0 +1,23 @@
+name: Orchestrator Pipeline
+
+on:
+  push:
+    branches: [main, stage]
+
+jobs:
+  build-auth-login:
+    name: Build auth-login Lambda
+    uses: ./.github/workflows/build-auth-login.yml
+
+  build-auth-register:
+    name: Build auth-register Lambda
+    uses: ./.github/workflows/build-auth-register.yml
+
+  deploy:
+    name: Deploy Terraform
+    needs: [build-auth-login, build-auth-register]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      source_code_hash_auth_login: ${{ needs.build-auth-login.outputs.source_code_hash }}
+      source_code_hash_auth_register: ${{ needs.build-auth-register.outputs.source_code_hash }}
+    secrets: inherit
