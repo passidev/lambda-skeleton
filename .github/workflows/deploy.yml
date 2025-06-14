@@ -70,18 +70,17 @@ jobs:
           done
           
 
-      - name: Import existing Lambda functions (if needed)
-        working-directory: infrastructure
+      - name: Delete existing Lambda functions (if any)
         run: |
-          for module in auth-login auth-register; do
-            FUNCTION_NAME="$module-${{ env.TF_VAR_env }}"
-            terraform state pull || echo "{}" > terraform.tfstate
-            EXISTS=$(terraform state list | grep "module.$module.aws_lambda_function.this" || true)
-            if [ -z "$EXISTS" ]; then
-              echo "⏳ Importing Lambda function $FUNCTION_NAME into Terraform state..."
-              terraform import module.$module.aws_lambda_function.this $FUNCTION_NAME || echo "⚠️ Failed to import $FUNCTION_NAME (may not exist yet)"
+          LAMBDAS=("auth-login-${{ env.TF_VAR_env }}" "auth-register-${{ env.TF_VAR_env }}")
+
+          for fn in "${LAMBDAS[@]}"; do
+            echo "🔍 Checking if Lambda $fn exists..."
+            if aws lambda get-function --function-name "$fn" &>/dev/null; then
+              echo "🧨 Deleting Lambda $fn..."
+              aws lambda delete-function --function-name "$fn"
             else
-              echo "✅ Lambda $FUNCTION_NAME already managed by Terraform, skipping import."
+              echo "✅ Lambda $fn does not exist. Skipping."
             fi
           done
 
