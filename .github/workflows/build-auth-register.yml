@@ -1,14 +1,14 @@
-name: Build Auth Login Lambda
+name: Build Auth Register Lambda
 
 on:
   push:
     branches: [main, stage]
     paths:
-      - 'lambdas/authLogin/**'
-      - '.github/workflows/build-auth-login.yml'
+      - 'lambdas/authRegister/**'
+      - '.github/workflows/build-auth-register.yml'
 
 jobs:
-  build-auth-login:
+  build-auth-register:
     runs-on: ubuntu-latest
     outputs:
       zip_hash: ${{ steps.hash.outputs.hash }}
@@ -24,20 +24,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: lambdas/authLogin
+        working-directory: lambdas/authRegister
 
       - name: Build Lambda
         run: npx esbuild handler.ts --bundle --platform=node --target=node20 --outfile=dist/index.js
-        working-directory: lambdas/authLogin
+        working-directory: lambdas/authRegister
 
       - name: Zip Lambda
         run: zip -j function.zip dist/index.js
-        working-directory: lambdas/authLogin
+        working-directory: lambdas/authRegister
 
       - name: Generate source code hash
         id: hash
         run: |
-          HASH=$(shasum -a 256 lambdas/authLogin/function.zip | cut -d ' ' -f 1 | xxd -r -p | base64)
+          HASH=$(shasum -a 256 lambdas/authRegister/function.zip | cut -d ' ' -f 1 | xxd -r -p | base64)
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials
@@ -50,4 +50,4 @@ jobs:
       - name: Upload to S3
         run: |
           BRANCH=${GITHUB_REF##*/}
-          aws s3 cp lambdas/authLogin/function.zip s3://lambdas-artifacts-$BRANCH/auth-login/$BRANCH/function.zip
+          aws s3 cp src/auth-register/function.zip s3://lambdas-artifacts-$BRANCH/auth-register/$BRANCH/function.zip
