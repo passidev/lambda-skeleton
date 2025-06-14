@@ -140,6 +140,17 @@ jobs:
             echo "ℹ️ No se encontró un API con ese nombre, nada que limpiar."
           fi
 
+      - name: Remove existing Lambda permission (if exists)
+        run: |
+          FUNCTION_NAME="auth-service-${{ env.BRANCH_NAME }}"
+          STATEMENT_ID="AllowAPIGatewayInvoke-${{ env.BRANCH_NAME }}"
+
+          echo "⏳ Attempting to remove permission $STATEMENT_ID from $FUNCTION_NAME..."
+          aws lambda remove-permission \
+            --function-name "$FUNCTION_NAME" \
+            --statement-id "$STATEMENT_ID" || echo "⚠️ Permission $STATEMENT_ID not found or already removed"
+
+
 
       - name: Terraform Apply
         working-directory: infrastructure
