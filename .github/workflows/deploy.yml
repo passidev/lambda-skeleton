@@ -44,3 +44,17 @@ jobs:
         run: |
           BRANCH=$(echo "${GITHUB_REF##*/}")
           aws s3 cp function.zip s3://lambdas-artifacts-$BRANCH/auth-service/$BRANCH/function.zip
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: infrastructure
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: infrastructure
+        run: |
+          terraform apply -auto-approve \
+            -var="env=${{ env.BRANCH_NAME }}" \
+            -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}"
