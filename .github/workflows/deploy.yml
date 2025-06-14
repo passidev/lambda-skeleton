@@ -119,6 +119,27 @@ jobs:
           else
             echo "✅ API Gateway already in Terraform state, skipping import."
           fi
+          
+
+      - name: Cleanup existing API Gateway routes & stage
+        working-directory: infrastructure
+        run: |
+          echo "🔍 Buscando API ID..."
+          API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='auth-service-${{ env.BRANCH_NAME }}-api'].ApiId" --output text)
+          
+          if [ -n "$API_ID" ]; then
+            echo "📛 Eliminando rutas actuales del API $API_ID..."
+            ROUTE_IDS=$(aws apigatewayv2 get-routes --api-id $API_ID --query 'Items[].RouteId' --output text)
+            for ROUTE_ID in $ROUTE_IDS; do
+              aws apigatewayv2 delete-route --api-id $API_ID --route-id $ROUTE_ID
+            done
+      
+            echo "🧼 Eliminando stage '$default' si existe..."
+            aws apigatewayv2 delete-stage --api-id $API_ID --stage-name '$default' || echo "⚠️ Stage '$default' no encontrado (ya eliminado o nunca creado)"
+          else
+            echo "ℹ️ No se encontró un API con ese nombre, nada que limpiar."
+          fi
+
 
       - name: Terraform Apply
         working-directory: infrastructure
