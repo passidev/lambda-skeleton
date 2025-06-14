@@ -75,7 +75,12 @@ jobs:
           EXISTS=$(terraform state list | grep "module.auth_lambda.aws_iam_role.lambda_role" || true)
           if [ -z "$EXISTS" ]; then
             echo "⏳ Importing role $ROLE_NAME into Terraform state..."
-            terraform import module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import (may not exist)"
+            terraform import \
+              -var="aws_region=${{ env.AWS_REGION }}" \
+              -var="env=${{ env.BRANCH_NAME }}" \
+              -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
+              -var="source_code_hash=" \
+              module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import (may not exist)"
           else
             echo "✅ Role already in Terraform state, skipping import."
           fi
