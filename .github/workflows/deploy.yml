@@ -68,6 +68,22 @@ jobs:
               echo "✅ Role $ROLE_NAME not found. Skipping."
             fi
           done
+          
+
+      - name: Import existing Lambda functions (if needed)
+        working-directory: infrastructure
+        run: |
+          for module in auth-login auth-register; do
+            FUNCTION_NAME="$module-${{ env.TF_VAR_env }}"
+            terraform state pull || echo "{}" > terraform.tfstate
+            EXISTS=$(terraform state list | grep "module.$module.aws_lambda_function.this" || true)
+            if [ -z "$EXISTS" ]; then
+              echo "⏳ Importing Lambda function $FUNCTION_NAME into Terraform state..."
+              terraform import module.$module.aws_lambda_function.this $FUNCTION_NAME || echo "⚠️ Failed to import $FUNCTION_NAME (may not exist yet)"
+            else
+              echo "✅ Lambda $FUNCTION_NAME already managed by Terraform, skipping import."
+            fi
+          done
 
       - name: Terraform Apply
         working-directory: infrastructure
