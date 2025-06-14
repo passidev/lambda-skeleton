@@ -11,7 +11,8 @@ jobs:
   build-auth-register:
     runs-on: ubuntu-latest
     outputs:
-      zip_hash: ${{ steps.hash.outputs.hash }}
+      source_code_hash: ${{ steps.hash.outputs.hash }}
+      branch_name: ${{ steps.extract_branch.outputs.branch }}
 
     steps:
       - name: Checkout
@@ -39,6 +40,13 @@ jobs:
         run: |
           HASH=$(shasum -a 256 lambdas/authRegister/function.zip | cut -d ' ' -f 1 | xxd -r -p | base64)
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          
+
+      - name: Extract branch name
+        id: extract_branch
+        run: |
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          echo "branch=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -50,4 +58,4 @@ jobs:
       - name: Upload to S3
         run: |
           BRANCH=${GITHUB_REF##*/}
-          aws s3 cp lambdas/authRegister/function.zip s3://lambdas-artifacts-$BRANCH/auth-register/$BRANCH/function.zip
+          aws s3 cp lambdas/authRegister/function.zip s3://lambdas-artifacts-${{ steps.extract_branch.outputs.branch }}/auth-register/${{ steps.extract_branch.outputs.branch }}/function.zip
