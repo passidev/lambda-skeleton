@@ -72,6 +72,7 @@ jobs:
         run: |
           ROLE_NAME="auth-service-${{ env.BRANCH_NAME }}-role"
           FUNCTION_NAME="auth-service-${{ env.BRANCH_NAME }}"
+          API_NAME="auth-service-${{ env.BRANCH_NAME }}-api"
 
           terraform state pull || echo "{}" > terraform.tfstate
 
@@ -99,6 +100,24 @@ jobs:
               module.auth_lambda.aws_lambda_function.this $FUNCTION_NAME || echo "⚠️ Failed to import Lambda"
           else
             echo "✅ Lambda already in Terraform state, skipping import."
+          fi
+
+          API_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_apigatewayv2_api.this" || true)
+          if [ -z "$API_EXISTS" ]; then
+            echo "⏳ Importing API Gateway $API_NAME into Terraform state..."
+            API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='$API_NAME'].ApiId" --output text)
+            if [ -n "$API_ID" ]; then
+              terraform import \
+                -var="aws_region=${{ env.AWS_REGION }}" \
+                -var="env=${{ env.BRANCH_NAME }}" \
+                -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
+                -var="source_code_hash=" \
+                module.auth_lambda.aws_apigatewayv2_api.this $API_ID || echo "⚠️ Failed to import API Gateway"
+            else
+              echo "❌ No API Gateway found with name $API_NAME"
+            fi
+          else
+            echo "✅ API Gateway already in Terraform state, skipping import."
           fi
 
       - name: Terraform Apply
