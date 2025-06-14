@@ -8,10 +8,18 @@ jobs:
   build-auth-login:
     name: Build auth-login Lambda
     uses: ./.github/workflows/build-auth-login.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
   build-auth-register:
     name: Build auth-register Lambda
     uses: ./.github/workflows/build-auth-register.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
   deploy:
     name: Deploy Terraform
@@ -20,4 +28,7 @@ jobs:
     with:
       source_code_hash_auth_login: ${{ needs.build-auth-login.outputs.source_code_hash }}
       source_code_hash_auth_register: ${{ needs.build-auth-register.outputs.source_code_hash }}
-    secrets: inherit
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
