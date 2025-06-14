@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, stage]
     paths:
-      - 'lambdas/authLogin/**'
+      - 'lambdas/auth-login/**'
       - '.github/workflows/build-auth-login.yml'
 
 jobs:
@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       source_code_hash: ${{ steps.hash.outputs.hash }}
-      branch_name: ${{ steps.extract_branch.outputs.branch }}
 
     steps:
       - name: Checkout
@@ -21,31 +20,25 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
       - name: Install dependencies
         run: npm ci
-        working-directory: lambdas/authLogin
+        working-directory: lambdas/auth-login
 
       - name: Build Lambda
-        run: npx esbuild src/handler.ts --bundle --platform=node --target=node22 --outfile=dist/index.js
-        working-directory: lambdas/authLogin
+        run: npx esbuild src/handler.ts --bundle --platform=node --target=node20 --outfile=dist/index.js
+        working-directory: lambdas/auth-login
 
       - name: Zip Lambda
         run: zip -j function.zip dist/index.js
-        working-directory: lambdas/authLogin
+        working-directory: lambdas/auth-login
 
       - name: Generate source code hash
         id: hash
         run: |
-          HASH=$(shasum -a 256 lambdas/authLogin/function.zip | cut -d ' ' -f 1 | xxd -r -p | base64)
+          HASH=$(shasum -a 256 lambdas/auth-login/function.zip | cut -d ' ' -f 1 | xxd -r -p | base64)
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
-
-      - name: Extract branch name
-        id: extract_branch
-        run: |
-          BRANCH_NAME="${GITHUB_REF##*/}"
-          echo "branch=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -56,4 +49,5 @@ jobs:
 
       - name: Upload to S3
         run: |
-          aws s3 cp lambdas/authLogin/function.zip s3://lambdas-artifacts-${{ steps.extract_branch.outputs.branch }}/auth-login/${{ steps.extract_branch.outputs.branch }}/function.zip
+          BRANCH=${GITHUB_REF##*/}
+          aws s3 cp lambdas/auth-login/function.zip s3://lambdas-artifacts-$BRANCH/auth-login/$BRANCH/function.zip
