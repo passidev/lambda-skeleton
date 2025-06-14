@@ -52,18 +52,20 @@ jobs:
             -var="source_code_hash_auth_register=${{ inputs.source_code_hash_auth_register }}"
           
 
-      - name: Force delete IAM roles (auth-login & auth-register)
+      - name: Force delete IAM roles (dynamic)
         run: |
-          for role in auth-login-${{ env.TF_VAR_env }}-role auth-register-${{ env.TF_VAR_env }}-role; do
-            echo "🔍 Checking if IAM role exists: $role"
-            if aws iam get-role --role-name "$role" > /dev/null 2>&1; then
-              echo "🧨 Deleting role: $role"
+          MODULES=$(ls infrastructure/modules)
+          for module in $MODULES; do
+            ROLE_NAME="${module}-${{ env.TF_VAR_env }}-role"
+            echo "🔍 Checking IAM role: $ROLE_NAME"
+            if aws iam get-role --role-name "$ROLE_NAME" > /dev/null 2>&1; then
+              echo "🧨 Deleting role: $ROLE_NAME"
               aws iam detach-role-policy \
-                --role-name "$role" \
+                --role-name "$ROLE_NAME" \
                 --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || true
-              aws iam delete-role --role-name "$role" || true
+              aws iam delete-role --role-name "$ROLE_NAME" || true
             else
-              echo "✅ Role $role not found. Skipping."
+              echo "✅ Role $ROLE_NAME not found. Skipping."
             fi
           done
 
