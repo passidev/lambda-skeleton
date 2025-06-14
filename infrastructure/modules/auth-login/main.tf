@@ -10,10 +10,12 @@ resource "aws_iam_role" "lambda_role" {
   })
 
   lifecycle {
-    prevent_destroy = true
-    ignore_changes = [
+    create_before_destroy = false
+    prevent_destroy       = true
+    ignore_changes        = [
       name,
-      assume_role_policy
+      assume_role_policy,
+      tags
     ]
   }
 }

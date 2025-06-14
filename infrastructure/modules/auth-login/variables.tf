@@ -11,8 +11,8 @@ variable "s3_bucket" {
 }
 
 variable "source_code_hash" {
-  type    = string
-  default = ""
+  type        = string
+  description = "Hash del código fuente de la Lambda para asegurar actualización"
 }
 
 variable "api_gateway_id" {
