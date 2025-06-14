@@ -1,4 +1,4 @@
-name: Deploy Infrastructure
+name: Deploy Infrastructure (Clean)
 
 on:
   workflow_call:
@@ -43,21 +43,13 @@ jobs:
         working-directory: infrastructure
         run: terraform init
 
-      - name: Import existing Lambda roles (if needed)
+      - name: Terraform Destroy (Clean slate)
         working-directory: infrastructure
-        continue-on-error: true
         run: |
-          terraform state pull || echo "{}" > terraform.tfstate
-          for lambda in auth-login auth-register; do
-            ROLE_NAME="$lambda-${{ env.TF_VAR_env }}-role"
-            EXISTS=$(terraform state list | grep "module.$lambda.aws_iam_role.lambda_role" || true)
-            if [ -z "$EXISTS" ]; then
-              echo "⏳ Importing role $ROLE_NAME into Terraform state..."
-              terraform import module.$lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import (may not exist)"
-            else
-              echo "✅ Role already in Terraform state, skipping import."
-            fi
-          done
+          terraform destroy -auto-approve \
+            -var-file=environments/${{ env.TF_VAR_env }}.tfvars \
+            -var="source_code_hash_auth_login=${{ inputs.source_code_hash_auth_login }}" \
+            -var="source_code_hash_auth_register=${{ inputs.source_code_hash_auth_register }}"
 
       - name: Terraform Apply
         working-directory: infrastructure
