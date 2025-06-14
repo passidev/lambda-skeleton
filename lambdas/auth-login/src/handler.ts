@@ -5,9 +5,9 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayEvent) =>
 
     return {
         statusCode: 200,
-        body: JSON.stringify({
+        body: {
             message: "Hello from Lambda Auth Login!",
-        }),
+        },
     };
 };
 
