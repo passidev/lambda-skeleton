@@ -1,17 +1,24 @@
 name: Deploy Infrastructure
 
 on:
-  workflow_run:
-    workflows:
-      - Build Auth Login Lambda
-      - Build Auth Register Lambda
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      source_code_hash_auth_login:
+        required: true
+        type: string
+      source_code_hash_auth_register:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_REGION:
+        required: true
 
 jobs:
   deploy:
-    if: >
-      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     env:
@@ -56,5 +63,5 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var-file=environments/${{ env.TF_VAR_env }}.tfvars \
-            -var="source_code_hash_auth_login=${{ needs.build-auth-login.outputs.zip_hash }}" \
-            -var="source_code_hash_auth_register=${{ needs.build-auth-register.outputs.zip_hash }}"
+            -var="source_code_hash_auth_login=${{ inputs.source_code_hash_auth_login }}" \
+            -var="source_code_hash_auth_register=${{ inputs.source_code_hash_auth_register }}"
