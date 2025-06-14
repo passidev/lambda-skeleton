@@ -1,4 +1,4 @@
-name: Build and Upload Lambda
+name: Build, Upload & Deploy Lambda
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: production
 
     steps:
       - name: Checkout code
@@ -33,6 +36,19 @@ jobs:
       - name: Zip function
         run: zip -j function.zip dist/index.js
 
+      - name: Set branch environment
+        run: |
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          if [ "$BRANCH_NAME" = "main" ]; then
+            echo "TFVARS_FILE=production.tfvars" >> $GITHUB_ENV
+          elif [ "$BRANCH_NAME" = "stage" ]; then
+            echo "TFVARS_FILE=stage.tfvars" >> $GITHUB_ENV
+          else
+            echo "❌ Unsupported branch: $BRANCH_NAME"
+            exit 1
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -42,8 +58,7 @@ jobs:
 
       - name: Upload to S3
         run: |
-          BRANCH=$(echo "${GITHUB_REF##*/}")
-          aws s3 cp function.zip s3://lambdas-artifacts-$BRANCH/auth-service/$BRANCH/function.zip
+          aws s3 cp function.zip s3://lambdas-artifacts-${{ env.BRANCH_NAME }}/auth-service/${{ env.BRANCH_NAME }}/function.zip
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -56,5 +71,4 @@ jobs:
         working-directory: infrastructure
         run: |
           terraform apply -auto-approve \
-            -var="env=${{ env.BRANCH_NAME }}" \
-            -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}"
+            -var-file=environments/${{ env.TFVARS_FILE }}
