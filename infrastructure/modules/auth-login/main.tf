@@ -8,6 +8,14 @@ resource "aws_iam_role" "lambda_role" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      name,
+      assume_role_policy
+    ]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
