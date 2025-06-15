@@ -10,11 +10,15 @@ variable "env" {
 
 variable "s3_bucket" {
   type        = string
-  description = "Bucket where the Lambda artifact is stored"
+  description = "Bucket where Lambda artifacts are stored"
 }
 
-variable "source_code_hash" {
+variable "source_code_hash_auth_login" {
+  description = "Hash del código fuente para la función auth-login"
   type        = string
-  description = "Optional: base64 hash of the function.zip"
-  default     = ""
+}
+
+variable "source_code_hash_auth_register" {
+  description = "Hash del código fuente para la función auth-register"
+  type        = string
 }

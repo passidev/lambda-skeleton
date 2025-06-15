@@ -1,159 +1,93 @@
-name: Build, Upload & Deploy Lambda
+name: Deploy Infrastructure (Clean)
 
 on:
-  push:
-    branches:
-      - main
-      - stage
+  workflow_call:
+    inputs:
+      source_code_hash_auth_login:
+        required: true
+        type: string
+      source_code_hash_auth_register:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_REGION:
+        required: true
 
 jobs:
-  build-and-upload:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
-      NODE_ENV: production
+      TF_VAR_env: ${{ github.ref_name == 'main' && 'prod' || 'stage' }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build Lambda with esbuild
-        run: |
-          npx esbuild src/handler.ts \
-            --bundle \
-            --platform=node \
-            --target=node20 \
-            --outfile=dist/index.js
-
-      - name: Zip function
-        run: zip -j function.zip dist/index.js
-
-      - name: Set branch environment
-        run: |
-          BRANCH_NAME="${GITHUB_REF##*/}"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-          if [ "$BRANCH_NAME" = "main" ]; then
-            echo "TFVARS_FILE=production.tfvars" >> $GITHUB_ENV
-          elif [ "$BRANCH_NAME" = "stage" ]; then
-            echo "TFVARS_FILE=stage.tfvars" >> $GITHUB_ENV
-          else
-            echo "❌ Unsupported branch: $BRANCH_NAME"
-            exit 1
-          fi
-
-      - name: Configure AWS credentials
+      - name: Setup AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Upload to S3
-        run: |
-          aws s3 cp function.zip s3://lambdas-artifacts-${{ env.BRANCH_NAME }}/auth-service/${{ env.BRANCH_NAME }}/function.zip
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         working-directory: infrastructure
         run: terraform init
 
-      - name: Terraform Import Resources if not present
+      - name: Terraform Destroy (Clean slate)
         working-directory: infrastructure
         run: |
-          ROLE_NAME="auth-service-${{ env.BRANCH_NAME }}-role"
-          FUNCTION_NAME="auth-service-${{ env.BRANCH_NAME }}"
-          API_NAME="auth-service-${{ env.BRANCH_NAME }}-api"
+          terraform destroy -auto-approve \
+            -var-file=environments/${{ env.TF_VAR_env }}.tfvars \
+            -var="source_code_hash_auth_login=${{ inputs.source_code_hash_auth_login }}" \
+            -var="source_code_hash_auth_register=${{ inputs.source_code_hash_auth_register }}"
+          
 
-          terraform state pull || echo "{}" > terraform.tfstate
-
-          ROLE_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_iam_role.lambda_role" || true)
-          if [ -z "$ROLE_EXISTS" ]; then
-            echo "⏳ Importing role $ROLE_NAME into Terraform state..."
-            terraform import \
-              -var="aws_region=${{ env.AWS_REGION }}" \
-              -var="env=${{ env.BRANCH_NAME }}" \
-              -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
-              -var="source_code_hash=" \
-              module.auth_lambda.aws_iam_role.lambda_role $ROLE_NAME || echo "⚠️ Failed to import role"
-          else
-            echo "✅ Role already in Terraform state, skipping import."
-          fi
-
-          FUNCTION_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_lambda_function.this" || true)
-          if [ -z "$FUNCTION_EXISTS" ]; then
-            echo "⏳ Importing Lambda $FUNCTION_NAME into Terraform state..."
-            terraform import \
-              -var="aws_region=${{ env.AWS_REGION }}" \
-              -var="env=${{ env.BRANCH_NAME }}" \
-              -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
-              -var="source_code_hash=" \
-              module.auth_lambda.aws_lambda_function.this $FUNCTION_NAME || echo "⚠️ Failed to import Lambda"
-          else
-            echo "✅ Lambda already in Terraform state, skipping import."
-          fi
-
-          API_EXISTS=$(terraform state list | grep "module.auth_lambda.aws_apigatewayv2_api.this" || true)
-          if [ -z "$API_EXISTS" ]; then
-            echo "⏳ Importing API Gateway $API_NAME into Terraform state..."
-            API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='$API_NAME'].ApiId" --output text)
-            if [ -n "$API_ID" ]; then
-              terraform import \
-                -var="aws_region=${{ env.AWS_REGION }}" \
-                -var="env=${{ env.BRANCH_NAME }}" \
-                -var="s3_bucket=lambdas-artifacts-${{ env.BRANCH_NAME }}" \
-                -var="source_code_hash=" \
-                module.auth_lambda.aws_apigatewayv2_api.this $API_ID || echo "⚠️ Failed to import API Gateway"
+      - name: Force delete IAM roles (dynamic)
+        run: |
+          MODULES=$(ls infrastructure/modules)
+          for module in $MODULES; do
+            ROLE_NAME="${module}-${{ env.TF_VAR_env }}-role"
+            echo "🔍 Checking IAM role: $ROLE_NAME"
+            if aws iam get-role --role-name "$ROLE_NAME" > /dev/null 2>&1; then
+              echo "🧨 Deleting role: $ROLE_NAME"
+              aws iam detach-role-policy \
+                --role-name "$ROLE_NAME" \
+                --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || true
+              aws iam delete-role --role-name "$ROLE_NAME" || true
             else
-              echo "❌ No API Gateway found with name $API_NAME"
+              echo "✅ Role $ROLE_NAME not found. Skipping."
             fi
-          else
-            echo "✅ API Gateway already in Terraform state, skipping import."
-          fi
+          done
           
 
-      - name: Cleanup existing API Gateway routes & stage
-        working-directory: infrastructure
+      - name: Delete existing Lambda functions (if any)
         run: |
-          echo "🔍 Buscando API ID..."
-          API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='auth-service-${{ env.BRANCH_NAME }}-api'].ApiId" --output text)
-          
-          if [ -n "$API_ID" ]; then
-            echo "📛 Eliminando rutas actuales del API $API_ID..."
-            ROUTE_IDS=$(aws apigatewayv2 get-routes --api-id $API_ID --query 'Items[].RouteId' --output text)
-            for ROUTE_ID in $ROUTE_IDS; do
-              aws apigatewayv2 delete-route --api-id $API_ID --route-id $ROUTE_ID
-            done
-      
-            echo "🧼 Eliminando stage '$default' si existe..."
-            aws apigatewayv2 delete-stage --api-id $API_ID --stage-name '$default' || echo "⚠️ Stage '$default' no encontrado (ya eliminado o nunca creado)"
-          else
-            echo "ℹ️ No se encontró un API con ese nombre, nada que limpiar."
-          fi
+          LAMBDAS=("auth-login-${{ env.TF_VAR_env }}" "auth-register-${{ env.TF_VAR_env }}")
 
-      - name: Remove existing Lambda permission (if exists)
-        run: |
-          FUNCTION_NAME="auth-service-${{ env.BRANCH_NAME }}"
-          STATEMENT_ID="AllowAPIGatewayInvoke-${{ env.BRANCH_NAME }}"
-
-          echo "⏳ Attempting to remove permission $STATEMENT_ID from $FUNCTION_NAME..."
-          aws lambda remove-permission \
-            --function-name "$FUNCTION_NAME" \
-            --statement-id "$STATEMENT_ID" || echo "⚠️ Permission $STATEMENT_ID not found or already removed"
-
-
+          for fn in "${LAMBDAS[@]}"; do
+            echo "🔍 Checking if Lambda $fn exists..."
+            if aws lambda get-function --function-name "$fn" &>/dev/null; then
+              echo "🧨 Deleting Lambda $fn..."
+              aws lambda delete-function --function-name "$fn"
+            else
+              echo "✅ Lambda $fn does not exist. Skipping."
+            fi
+          done
 
       - name: Terraform Apply
         working-directory: infrastructure
         run: |
           terraform apply -auto-approve \
-            -var-file=environments/${{ env.TFVARS_FILE }}
+            -var-file=environments/${{ env.TF_VAR_env }}.tfvars \
+            -var="source_code_hash_auth_login=${{ inputs.source_code_hash_auth_login }}" \
+            -var="source_code_hash_auth_register=${{ inputs.source_code_hash_auth_register }}"

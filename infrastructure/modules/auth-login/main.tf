@@ -8,6 +8,16 @@ resource "aws_iam_role" "lambda_role" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  lifecycle {
+    create_before_destroy = false
+    prevent_destroy       = true
+    ignore_changes        = [
+      name,
+      assume_role_policy,
+      tags
+    ]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
@@ -26,45 +36,26 @@ resource "aws_lambda_function" "this" {
   publish          = true
 }
 
-resource "aws_apigatewayv2_api" "this" {
-  name          = "${var.name}-${var.env}-api"
-  protocol_type = "HTTP"
-}
-
 resource "aws_apigatewayv2_integration" "this" {
-  api_id                 = aws_apigatewayv2_api.this.id
+  api_id                 = var.api_gateway_id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.this.invoke_arn
   integration_method     = "POST"
   payload_format_version = "2.0"
 }
 
+
 resource "aws_apigatewayv2_route" "this" {
-  api_id    = aws_apigatewayv2_api.this.id
-  route_key = "GET /"
+  api_id    = var.api_gateway_id
+  route_key = "POST /auth/login"
   target    = "integrations/${aws_apigatewayv2_integration.this.id}"
 }
 
-resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.this.id
-  name        = "$default"
-  auto_deploy = true
-}
 
 resource "aws_lambda_permission" "api_gw" {
-  statement_id  = "AllowAPIGatewayInvoke-${var.env}"
+  statement_id  = "AllowAPIGatewayInvoke-${var.name}-${var.env}"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.this.arn
+  function_name = aws_lambda_function.this.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
-
-  depends_on = [
-    aws_apigatewayv2_api.this,
-    aws_apigatewayv2_integration.this,
-    aws_apigatewayv2_route.this
-  ]
-}
-
-output "lambda_api_url" {
-  value = aws_apigatewayv2_api.this.api_endpoint
+  source_arn    = "${var.api_execution_arn}/*/*"
 }
